@@ -1,7 +1,7 @@
 # For those who say it doesn't work, try the following:  
 1. Run as administrator  
 2. Don't give up after a few seconds; patiently wait about a minute after starting
-
+3. Try disconnecting the controller
 # ダウンロードリンク↓
 ## https://github.com/ppkk12/fortnite-automatic-lap/releases/download/v1.1/pk-auto5AB.exe (japanese/english/Español/Português/Русский)Recommended
 ＊Español/Português/Русскийこの３つの言語は動作確認してません。失敗の確率を下げたいのならば英語or日本語を推奨。
