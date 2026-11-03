@@ -4,7 +4,7 @@
 
 # ダウンロードリンク↓
 
-## https://github.com/ppkk12/fortnite-automatic-lap/releases/tag/v1.0(5-languages) (japanese/english/Español/Português/Русский)Recommended
+## https://github.com/ppkk12/fortnite-automatic-lap/releases/tag/v1.0(5-languages)/pk-auto5.exe (japanese/english/Español/Português/Русский)Recommended
 ＊Español/Português/Русскийこの３つの言語は動作確認してません。失敗の確率を下げたいのならば英語or日本語を推奨。
 
 https://github.com/ppkk12/fortnite-automatic-lap/releases/download/v1.0/pk-auto.exe (japanese)
