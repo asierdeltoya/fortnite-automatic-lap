@@ -1,4 +1,11 @@
+# For those who say it doesn't work, try the following:  
+1. Run as administrator  
+2. Don't give up after a few seconds; patiently wait about a minute after starting
+
 # ダウンロードリンク↓
+
+## https://github.com/ppkk12/fortnite-automatic-lap/releases/tag/v1.0(5-languages) (japanese/english/Español/Português/Русский)Recommended
+＊Español/Português/Русскийこの３つの言語は動作確認してません。失敗の確率を下げたいのならば英語or日本語を推奨。
 
 https://github.com/ppkk12/fortnite-automatic-lap/releases/download/v1.0/pk-auto.exe (japanese)
 
