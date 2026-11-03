@@ -3,8 +3,16 @@
 2. Don't give up after a few seconds; patiently wait about a minute after starting
 
 # ダウンロードリンク↓
+## https://github.com/ppkk12/fortnite-automatic-lap/releases/download/v1.1/pk-auto5AB.exe (japanese/english/Español/Português/Русский)Recommended
+＊Español/Português/Русскийこの３つの言語は動作確認してません。失敗の確率を下げたいのならば英語or日本語を推奨。
+↑最新
+<img width="1535" height="954" alt="image" src="https://github.com/user-attachments/assets/8844c270-6ce9-4a8b-95bc-cffc1628dd9c" />
 
-## https://github.com/ppkk12/fortnite-automatic-lap/releases/tag/v1.0(5-languages)/pk-auto5.exe (japanese/english/Español/Português/Русский)Recommended
+
+
+# 昔のバージョンのダウンロードリンク↓
+
+https://github.com/ppkk12/fortnite-automatic-lap/releases/tag/v1.0(5-languages)/pk-auto5.exe (japanese/english/Español/Português/Русский)
 ＊Español/Português/Русскийこの３つの言語は動作確認してません。失敗の確率を下げたいのならば英語or日本語を推奨。
 
 https://github.com/ppkk12/fortnite-automatic-lap/releases/download/v1.0/pk-auto.exe (japanese)
