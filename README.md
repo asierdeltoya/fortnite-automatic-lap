@@ -1,3 +1,6 @@
+# ダウンロードリンク↓
+https://github.com/ppkk12/fortnite-automatic-lap/releases/download/v1.0/pk-auto.exe
+
 # fortnite-automatic-lap
 自動でプレイやロビーに戻るを押させるツール
 
