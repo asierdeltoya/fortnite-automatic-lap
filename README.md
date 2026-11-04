@@ -59,5 +59,19 @@ https://github.com/ppkk12/fortnite-automatic-lap/releases/download/v1.0(english)
 - 本ツールは配布者・作者が動作を保証するものではありません。自己
   責任の上でご利用ください。
 
-■ 連絡先・不具合報告
+# 連絡先・不具合報告
 X (Twitter): @4z5pk
+
+## 構造
+```text
+pk-auto/
+├── assets/                  # テンプレート画像リソース
+├── src/                     # メインソースコード
+├── tests/                   # テスト
+├── tools/                   # 補助スクリプト・ツール
+├── .gitignore
+├── build_exe_protected.bat  # ビルドスクリプト
+├── pk-auto.spec             # PyInstaller 設定
+├── requirements.txt         # 依存パッケージ
+└── README.md
+```
