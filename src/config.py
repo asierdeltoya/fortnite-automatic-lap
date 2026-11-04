@@ -3,6 +3,8 @@ import os
 import sys
 from dataclasses import dataclass
 
+import i18n
+
 TEMPLATE_NAMES = {
     "play": "play_btn.png",
     "continue": "continue_btn.png",
@@ -18,12 +20,13 @@ TEMPLATE_NAMES = {
     "menu_return": "menu_return_btn.png",
 }
 
-MODES = {"A": "A: Bucle normal (Continuar → Saltar → Lobby)", "B": "B: Esperar en la isla de espera y salir con Esc"}
+# Mode labels live in i18n.py under "mode_A" / "mode_B".
+MODES = ("A", "B")
 
 OPTIONAL_TEMPLATES = {"popup", "claim", "claim_single"}
 
 LANGS = {
-    "ja": "Japonés",
+    "ja": "日本語",
     "en": "English",
     "es": "Español (beta)",
     "pt": "Português (beta)",
@@ -87,7 +90,8 @@ def template_path(key, lang="ja"):
 @dataclass
 class Settings:
     threshold: float = 0.82
-    lang: str = "es"
+    lang: str = "ja"
+    ui_lang: str = "ja"
     mode: str = "A"
     wait_b: float = 90.0
     poll_interval: float = 2.0
@@ -106,7 +110,7 @@ class Settings:
     afk_keys: tuple = ("w", "a", "s", "d")
 
 SAVED_FIELDS = (
-    "threshold", "lang", "mode", "wait_b",
+    "threshold", "lang", "ui_lang", "mode", "wait_b",
     "afk_enabled", "afk_interval", "afk_hold",
     "monitor_index", "only_foreground",
 )
@@ -122,8 +126,17 @@ LIMITS = {
 def settings_path():
     return os.path.join(base_dir(), "pk-auto-config.json")
 
-def load_settings(path=None):
+def default_settings():
+    """Defaults for a first launch: follow the Windows display language."""
     s = Settings()
+    sys_lang = i18n.system_lang()
+    s.ui_lang = sys_lang if sys_lang in i18n.UI_LANGS else i18n.DEFAULT_UI_LANG
+    s.lang = sys_lang if sys_lang in LANGS else "en"
+    return s
+
+def load_settings(path=None):
+    s = default_settings()
+    defaults = default_settings()
     try:
         with open(path or settings_path(), encoding="utf-8") as f:
             data = json.load(f)
@@ -145,9 +158,11 @@ def load_settings(path=None):
         elif isinstance(v, str):
             setattr(s, k, v)
     if s.lang not in LANGS:
-        s.lang = Settings.lang
+        s.lang = defaults.lang
+    if s.ui_lang not in i18n.UI_LANGS:
+        s.ui_lang = defaults.ui_lang
     if s.mode not in MODES:
-        s.mode = Settings.mode
+        s.mode = defaults.mode
     return s
 
 def save_settings(s, path=None):

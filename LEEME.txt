@@ -4,7 +4,9 @@ pk-auto.exe funciona solo, no necesita ningún otro archivo.
 
 1. Abre pk-auto.exe, entra al lobby del juego y pulsa «Iniciar».
    F8 inicia o detiene en cualquier momento.
-2. Elige el idioma en el que tienes Fortnite en «Idioma del juego».
+2. «Idioma de la interfaz» cambia la ventana entre japonés, inglés y
+   español. La primera vez usa el idioma de Windows.
+   Elige el idioma en el que tienes Fortnite en «Idioma del juego».
    Español, portugués y ruso están en beta: se fijan solo en la forma
    del botón, no en el texto.
 3. Si tienes varias pantallas, elige en «Pantalla» la que muestra Fortnite.

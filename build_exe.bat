@@ -7,3 +7,4 @@ if not exist .venv (
 )
 .venv\Scripts\pyinstaller --noconsole --onefile --name pk-auto --add-data "assets;assets_default" src/main.py || exit /b 1
 copy /y LEEME.txt dist\LEEME.txt >nul || exit /b 1
+copy /y README.txt dist\README.txt >nul || exit /b 1
