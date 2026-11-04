@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+dist_protected/
+build_obf/
+*.spec
+*.pfx
+*.p12
