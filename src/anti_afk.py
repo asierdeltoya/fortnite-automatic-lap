@@ -14,7 +14,11 @@ class AntiAfk:
         key = random.choice(self.s.afk_keys)
         pydirectinput.keyDown(key)
         try:
-            stop.wait(self.s.afk_hold)
+            end = time.monotonic() + self.s.afk_hold
+            while True:
+                left = end - time.monotonic()
+                if left <= 0 or stop.wait(min(0.1, left)) or not self.active():
+                    break
         finally:
             pydirectinput.keyUp(key)
         return key

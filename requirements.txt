@@ -1,8 +1,6 @@
-opencv-python
-mss
-numpy
-pydirectinput
-keyboard
-Pillow
-pytest
-pyinstaller
+opencv-python==5.0.0.93
+mss==10.2.0
+numpy==2.5.4
+PyDirectInput==1.0.4
+keyboard==0.13.5
+pillow==13.0.0

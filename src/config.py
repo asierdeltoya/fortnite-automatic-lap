@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from dataclasses import dataclass
@@ -17,12 +18,12 @@ TEMPLATE_NAMES = {
     "menu_return": "menu_return_btn.png",
 }
 
-MODES = {"A": "A: 通常ループ (続行→スキップ→ロビーへ)", "B": "B: 待機島で待ってEscから退出"}
+MODES = {"A": "A: Bucle normal (Continuar → Saltar → Lobby)", "B": "B: Esperar en la isla de espera y salir con Esc"}
 
 OPTIONAL_TEMPLATES = {"popup", "claim", "claim_single"}
 
 LANGS = {
-    "ja": "日本語",
+    "ja": "Japonés",
     "en": "English",
     "es": "Español (beta)",
     "pt": "Português (beta)",
@@ -86,7 +87,7 @@ def template_path(key, lang="ja"):
 @dataclass
 class Settings:
     threshold: float = 0.82
-    lang: str = "ja"
+    lang: str = "es"
     mode: str = "A"
     wait_b: float = 90.0
     poll_interval: float = 2.0
@@ -97,8 +98,61 @@ class Settings:
     delay_max: float = 0.45
     click_cooldown: float = 3.0
     monitor_index: int = 1
+    only_foreground: bool = True
 
     afk_enabled: bool = True
     afk_interval: float = 10.0
     afk_hold: float = 3.0
     afk_keys: tuple = ("w", "a", "s", "d")
+
+SAVED_FIELDS = (
+    "threshold", "lang", "mode", "wait_b",
+    "afk_enabled", "afk_interval", "afk_hold",
+    "monitor_index", "only_foreground",
+)
+
+LIMITS = {
+    "threshold": (0.5, 0.95),
+    "wait_b": (10.0, 600.0),
+    "afk_interval": (1.0, 600.0),
+    "afk_hold": (0.5, 30.0),
+    "monitor_index": (1, 16),
+}
+
+def settings_path():
+    return os.path.join(base_dir(), "pk-auto-config.json")
+
+def load_settings(path=None):
+    s = Settings()
+    try:
+        with open(path or settings_path(), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return s
+    if not isinstance(data, dict):
+        return s
+    for k in SAVED_FIELDS:
+        if k not in data:
+            continue
+        default, v = getattr(s, k), data[k]
+        if isinstance(default, bool):
+            if isinstance(v, bool):
+                setattr(s, k, v)
+        elif isinstance(default, (int, float)):
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                lo, hi = LIMITS.get(k, (v, v))
+                setattr(s, k, type(default)(min(max(v, lo), hi)))
+        elif isinstance(v, str):
+            setattr(s, k, v)
+    if s.lang not in LANGS:
+        s.lang = Settings.lang
+    if s.mode not in MODES:
+        s.mode = Settings.mode
+    return s
+
+def save_settings(s, path=None):
+    path = path or settings_path()
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({k: getattr(s, k) for k in SAVED_FIELDS}, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)

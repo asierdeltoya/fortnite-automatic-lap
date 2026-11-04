@@ -1,0 +1,29 @@
+pk-auto
+=======
+pk-auto.exe funciona solo, no necesita ningún otro archivo.
+
+1. Abre pk-auto.exe, entra al lobby del juego y pulsa «Iniciar».
+   F8 inicia o detiene en cualquier momento.
+2. Elige el idioma en el que tienes Fortnite en «Idioma del juego».
+   Español, portugués y ruso están en beta: se fijan solo en la forma
+   del botón, no en el texto.
+3. Si tienes varias pantallas, elige en «Pantalla» la que muestra Fortnite.
+4. Con «Pausar si Fortnite no está en primer plano» activado (por defecto),
+   el programa no hace clic ni pulsa teclas mientras estés en otra ventana.
+5. Si no detecta los botones (otra resolución o interfaz), usa
+   «Recortar imagen» para capturar los tuyos, o pon PNG en una carpeta
+   «assets» junto a pk-auto.exe. Esos archivos sustituyen a los integrados:
+     play_btn.png          - botón «Jugar» del lobby
+     continue_btn.png      - botón «Continuar» al ser eliminado
+     skip_btn.png          - botón «Saltar» en la pantalla de PE
+     return_lobby_btn.png  - botón «Volver al lobby» del resumen
+     claim_btn.png         - botón «Reclamar todo» de recompensas
+     popup_btn.png         - opcional: cualquier otra ventana emergente
+6. Modo A = bucle normal (Continuar / Saltar / Volver al lobby).
+   Modo B = espera en la isla previa a la partida (90 s por defecto), pulsa
+   Esc, abre el menú, «Volver al lobby» y vuelve a buscar partida.
+
+La configuración se guarda sola en pk-auto-config.json, junto al exe.
+
+Aviso: automatizar el juego puede ir contra las condiciones de uso de
+Fortnite y sus normas antitrampas. Úsalo bajo tu propia responsabilidad.

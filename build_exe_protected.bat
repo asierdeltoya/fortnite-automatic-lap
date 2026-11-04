@@ -3,16 +3,16 @@ setlocal
 cd /d "%~dp0"
 if not exist .venv (
     python -m venv .venv || exit /b 1
-    .venv\Scripts\pip install -r requirements.txt || exit /b 1
+    .venv\Scripts\pip install -r requirements-dev.txt || exit /b 1
 )
 .venv\Scripts\pip install -q pyarmor || exit /b 1
 if exist build_obf rmdir /s /q build_obf
-.venv\Scripts\pyarmor gen -O build_obf\src src\main.py src\config.py src\vision.py src\controller.py src\state_machine.py src\anti_afk.py src\mode_b.py || exit /b 1
+.venv\Scripts\pyarmor gen -O build_obf\src src\main.py src\config.py src\vision.py src\controller.py src\state_machine.py src\anti_afk.py src\mode_b.py src\window.py || exit /b 1
 .venv\Scripts\pyinstaller --noconsole --onefile --name pk-auto ^
   --paths build_obf\src ^
   --hidden-import pyarmor_runtime_000000 ^
   --hidden-import config --hidden-import anti_afk --hidden-import controller ^
-  --hidden-import state_machine --hidden-import vision --hidden-import mode_b --hidden-import math ^
+  --hidden-import state_machine --hidden-import vision --hidden-import mode_b --hidden-import window --hidden-import json --hidden-import math ^
   --hidden-import cv2 --hidden-import numpy ^
   --hidden-import tkinter --hidden-import tkinter.ttk ^
   --hidden-import queue --hidden-import threading --hidden-import dataclasses ^
