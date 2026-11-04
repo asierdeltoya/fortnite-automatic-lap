@@ -118,6 +118,7 @@ pk-auto/
 ├── tests/                   # テスト
 ├── tools/                   # 補助スクリプト・ツール
 ├── .gitignore
+├── build_exe                # ビルドスクリプト(一般)
 ├── build_exe_protected.bat  # ビルドスクリプト
 ├── pk-auto.spec             # PyInstaller 設定
 ├── requirements.txt         # 依存パッケージ
