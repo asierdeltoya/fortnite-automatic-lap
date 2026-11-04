@@ -10,6 +10,10 @@
 
 
 
+https://github.com/user-attachments/assets/6692b13e-a1b9-44f3-8854-81173c506594
+
+
+
 # 昔のバージョンのダウンロードリンク↓
 
 https://github.com/ppkk12/fortnite-automatic-lap/releases/tag/v1.0(5-languages)/pk-auto5.exe (japanese/english/Español/Português/Русский)
