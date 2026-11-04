@@ -103,6 +103,7 @@ https://github.com/ppkk12/fortnite-automatic-lap/releases/download/v1.0(english)
   似た挙動として検知されやすいためです。心配な方は、ご自身で
   nordvpnfilecheckerなどにファイルをアップロードして確認してから実行して
   ください。
+- 構造は必要最低限の項目だけアップしてます
 - 本ツールは配布者・作者が動作を保証するものではありません。自己
   責任の上でご利用ください。
 
