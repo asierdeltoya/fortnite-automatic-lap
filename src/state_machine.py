@@ -46,7 +46,7 @@ class StateMachine:
     def stop(self):
         self.state = State.IDLE
 
-    def step(self, frame, ox=0, oy=0):
+    def step(self, frame, ox = 0, oy = 0):
         if self.state is State.IDLE:
             return StepResult(self.state, note="idle")
 

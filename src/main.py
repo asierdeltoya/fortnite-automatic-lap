@@ -22,9 +22,11 @@ def _enable_dpi_awareness():
 _enable_dpi_awareness()
 
 import config
+import i18n
 from anti_afk import AntiAfk
 from config import Settings
 from controller import Controller
+from focus import WinApi, find_game
 from mode_b import ModeB
 from state_machine import State, StateMachine
 from vision import capture_screen, find_template, load_template_auto
@@ -55,6 +57,7 @@ class Worker(threading.Thread):
     def run(self):
         lang = self.s.lang
         templates = self._load_templates(lang)
+
         ctrl = Controller(self.s)
         machines = {"A": StateMachine(self.s, templates, ctrl), "B": ModeB(self.s, templates, ctrl)}
         mode = self.s.mode if self.s.mode in machines else "A"
@@ -72,13 +75,11 @@ class Worker(threading.Thread):
                     templates = self._load_templates(lang)
                     for m in machines.values():
                         m.templates = templates
-                    self.log_q.put(f"language: {config.LANGS.get(lang, lang)}")
                 if self.s.mode != mode and self.s.mode in machines:
                     sm.stop()
                     mode = self.s.mode
                     sm = machines[mode]
                     sm.start()
-                    self.log_q.put(f"mode: {config.MODES[mode]}")
                 frame, ox, oy = capture_screen(self.s.monitor_index)
                 r = sm.step(frame, ox, oy)
                 self.status.update(state=r.state.value, score=r.score, loops=sm.loops)
@@ -93,7 +94,7 @@ class Worker(threading.Thread):
 
 class SnipOverlay:
 
-    def __init__(self, root, key, on_done, lang="ja"):
+    def __init__(self, root, key, on_done, lang = "ja"):
         self.key, self.on_done, self.lang = key, on_done, lang
         frame, _, _ = capture_screen(1)
         self.img = Image.fromarray(frame[:, :, ::-1])
@@ -130,7 +131,7 @@ class SnipOverlay:
         path = config.external_template_path(self.key, self.lang)
         w, h = self.img.size
         if (x1 - x0) * (y1 - y0) > 0.15 * w * h:
-            self._close(None, "selection too large - drag only around the button")
+            self._close(None, i18n.t(self.lang, "log_too_large"))
             return
         self.img.crop((x0, y0, x1, y1)).save(path)
         self._close(path)
@@ -145,66 +146,84 @@ class App:
         self.log_q = queue.Queue()
         self.status = {"state": State.IDLE.value, "score": 0.0, "loops": 0}
         self.worker = None
+        self._tr = []
 
         self.root = tk.Tk()
         self.root.title("pk-auto")
         r = self.root
         k = r.winfo_fpixels("1i") / 96.0
-        r.geometry(f"{int(380 * k)}x{int(600 * k)}")
+        r.geometry(f"{int(480 * k)}x{int(690 * k)}")
 
         ttk.Label(r, text=TITLE, font=("Segoe UI", 16, "bold")).pack(pady=(8, 0))
+
+        self.nb = ttk.Notebook(r)
+        self.nb.pack(fill="both", expand=True, padx=6, pady=6)
+        self.ctl = ttk.Frame(self.nb)
+        self.gd = ttk.Frame(self.nb)
+        self.nb.add(self.ctl, text="")
+        self.nb.add(self.gd, text="")
+        self._build_control(self.ctl)
+        self._build_guide(self.gd)
+
+        self._apply_lang()
+        self._start_hotkey()
+        self.root.after(200, self._tick)
+        self.root.protocol("WM_DELETE_WINDOW", self._quit)
+
+    def _l(self, widget, key):
+        self._tr.append((widget, key))
+        return widget
+
+    def _build_control(self, r):
         self.info_var = tk.StringVar()
-        ttk.Label(r, textvariable=self.info_var).pack()
-        self._show("IDLE", 0.0, 0)
+        ttk.Label(r, textvariable=self.info_var).pack(pady=(6, 0))
 
         row = ttk.Frame(r)
         row.pack(pady=6)
-        self.btn = ttk.Button(row, text="開始", command=self.toggle)
+        self.btn = ttk.Button(row, command=self.toggle)
         self.btn.pack(side="left", padx=4)
         self.top_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(row, text="最前面", variable=self.top_var, command=lambda: r.attributes("-topmost", self.top_var.get())).pack(side="left")
+        self._l(ttk.Checkbutton(row, variable=self.top_var, command=lambda: self.root.attributes("-topmost", self.top_var.get())), "topmost").pack(side="left")
 
         lang_row = ttk.Frame(r)
         lang_row.pack(pady=(0, 4))
-        ttk.Label(lang_row, text="ゲーム言語 / Game language").pack(side="left", padx=4)
+        self._l(ttk.Label(lang_row), "lang_label").pack(side="left", padx=4)
         self.lang_var = tk.StringVar(value=config.LANGS[self.s.lang])
         lang_box = ttk.Combobox(lang_row, textvariable=self.lang_var, values=list(config.LANGS.values()), width=16, state="readonly")
         lang_box.pack(side="left")
         lang_box.bind("<<ComboboxSelected>>", self._on_lang)
 
         self.mode_var = tk.StringVar(value=self.s.mode)
-        for code, label in config.MODES.items():
-            ttk.Radiobutton(r, text=label, value=code, variable=self.mode_var, command=self._on_mode).pack(anchor="w", padx=16)
+        for code in config.MODES:
+            self._l(ttk.Radiobutton(r, value=code, variable=self.mode_var, command=self._on_mode), f"mode_{code}").pack(anchor="w", padx=16)
         wait_row = ttk.Frame(r)
         wait_row.pack(pady=2)
         self.wait_b_var = tk.StringVar(value=f"{self.s.wait_b}")
-        ttk.Label(wait_row, text="B: 待機島で").pack(side="left")
+        self._l(ttk.Label(wait_row), "b_pre").pack(side="left")
         ttk.Spinbox(wait_row, from_=10, to=600, increment=5, width=5, textvariable=self.wait_b_var).pack(side="left", padx=2)
-        ttk.Label(wait_row, text="秒待ってから Esc").pack(side="left")
+        self._l(ttk.Label(wait_row), "b_post").pack(side="left")
         self.wait_b_var.trace_add("write", lambda *_: self._on_afk_num("wait_b", self.wait_b_var, 10.0, 600.0))
 
         self.afk_var = tk.BooleanVar(value=self.s.afk_enabled)
-        ttk.Checkbutton(
-            r,
-            text="マッチ中 WASD ランダム長押し",
-            variable=self.afk_var,
-            command=lambda: setattr(self.s, "afk_enabled", self.afk_var.get()),
+        self._l(
+            ttk.Checkbutton(r, variable=self.afk_var, command=lambda: setattr(self.s, "afk_enabled", self.afk_var.get())),
+            "afk_check",
         ).pack()
 
         afk_row = ttk.Frame(r)
         afk_row.pack(pady=2)
         self.afk_int_var = tk.StringVar(value=f"{self.s.afk_interval}")
         self.afk_hold_var = tk.StringVar(value=f"{self.s.afk_hold}")
-        ttk.Label(afk_row, text="間隔").pack(side="left")
+        self._l(ttk.Label(afk_row), "afk_pre").pack(side="left")
         ttk.Spinbox(afk_row, from_=1, to=600, increment=1, width=5, textvariable=self.afk_int_var).pack(side="left", padx=2)
-        ttk.Label(afk_row, text="秒ごと / 長押し").pack(side="left")
+        self._l(ttk.Label(afk_row), "afk_mid").pack(side="left")
         ttk.Spinbox(afk_row, from_=0.5, to=30, increment=0.5, width=5, textvariable=self.afk_hold_var).pack(side="left", padx=2)
-        ttk.Label(afk_row, text="秒").pack(side="left")
+        self._l(ttk.Label(afk_row), "afk_post").pack(side="left")
         self.afk_int_var.trace_add("write", lambda *_: self._on_afk_num("afk_interval", self.afk_int_var, 1.0, 600.0))
         self.afk_hold_var.trace_add("write", lambda *_: self._on_afk_num("afk_hold", self.afk_hold_var, 0.5, 30.0))
 
         self.th_var = tk.DoubleVar(value=self.s.threshold)
-        ttk.Label(r, text="しきい値").pack()
+        self._l(ttk.Label(r), "threshold").pack()
         ttk.Scale(r, from_=0.5, to=0.95, variable=self.th_var, command=self._on_th).pack(fill="x", padx=12)
         self.th_lbl = ttk.Label(r, text=f"{self.s.threshold:.2f}")
         self.th_lbl.pack()
@@ -213,14 +232,50 @@ class App:
         cap.pack(pady=4)
         self.cap_key = tk.StringVar(value="play")
         ttk.Combobox(cap, textvariable=self.cap_key, values=list(config.TEMPLATE_NAMES), width=14, state="readonly").pack(side="left", padx=4)
-        ttk.Button(cap, text="画像を切り抜く", command=self.capture_template).pack(side="left")
+        self._l(ttk.Button(cap, command=self.capture_template), "crop").pack(side="left")
 
         self.log = tk.Text(r, height=9, state="disabled", font=("Consolas", 9))
         self.log.pack(fill="both", expand=True, padx=8, pady=6)
 
-        self._start_hotkey()
-        self.root.after(200, self._tick)
-        self.root.protocol("WM_DELETE_WINDOW", self._quit)
+    def _build_guide(self, r):
+        sb = ttk.Scrollbar(r, orient="vertical")
+        self.guide_txt = tk.Text(r, wrap="word", state="disabled", font=("Segoe UI", 10), padx=10, pady=6, relief="flat", yscrollcommand=sb.set)
+        sb.config(command=self.guide_txt.yview)
+        sb.pack(side="right", fill="y")
+        self.guide_txt.pack(side="left", fill="both", expand=True)
+        g = self.guide_txt
+        g.tag_configure("p", spacing3=4)
+        g.tag_configure("n", lmargin1=12, lmargin2=30, spacing3=2)
+        g.tag_configure("li", lmargin1=12, lmargin2=26, spacing3=2)
+
+    def _render_guide(self):
+        g = self.guide_txt
+        family = "Yu Gothic UI" if self.s.lang == "ja" else "Segoe UI"
+
+        g.config(state="normal", font=(family, 10), wrap="char" if self.s.lang == "ja" else "word")
+        g.tag_configure("h1", font=(family, 12, "bold"), spacing1=12, spacing3=4)
+        g.tag_configure("h2", font=(family, 10, "bold"), spacing1=8, spacing3=2)
+        g.delete("1.0", "end")
+        for kind, text in i18n.guide(self.s.lang):
+            g.insert("end", ("•  " if kind == "li" else "") + text + "\n", kind)
+        g.config(state="disabled")
+        g.yview_moveto(0)
+
+    def _apply_lang(self):
+        lang = i18n.norm(self.s.lang)
+        for widget, key in self._tr:
+            widget.config(text=i18n.t(lang, key))
+        self.nb.tab(self.ctl, text=i18n.t(lang, "tab_control"))
+        self.nb.tab(self.gd, text=i18n.t(lang, "tab_guide"))
+        self._refresh_btn()
+        self._show(self.status["state"], self.status["score"], self.status["loops"])
+        self._render_guide()
+
+    def _running(self):
+        return bool(self.worker and self.worker.is_alive() and not self.worker.stop_event.is_set())
+
+    def _refresh_btn(self):
+        self.btn.config(text=i18n.t(self.s.lang, "stop" if self._running() else "start"))
 
     def _on_th(self, _v):
         self.s.threshold = round(self.th_var.get(), 2)
@@ -230,11 +285,12 @@ class App:
         for code, name in config.LANGS.items():
             if name == self.lang_var.get():
                 self.s.lang = code
-                self._log(f"language: {name}")
+                self._apply_lang()
+                self._log(i18n.t(code, "log_language", name=name))
 
     def _on_mode(self):
         self.s.mode = self.mode_var.get()
-        self._log(f"mode: {config.MODES[self.s.mode]}")
+        self._log(i18n.t(self.s.lang, "log_mode", name=i18n.t(self.s.lang, f"mode_{self.s.mode}")))
 
     def _on_afk_num(self, attr, var, lo, hi):
         try:
@@ -245,23 +301,23 @@ class App:
             setattr(self.s, attr, v)
 
     def _show(self, state, score, loops):
-        self.info_var.set(f"{state}   score: {score:.2f}   loops: {loops}")
+        self.info_var.set(i18n.t(self.s.lang, "info", state=state, score=score, loops=loops))
 
     def toggle(self):
-        if self.worker and self.worker.is_alive():
+        if self._running():
             self.stop()
         else:
             self.worker = Worker(self.s, self.log_q, self.status)
             self.worker.start()
-            self.btn.config(text="停止")
-            self._log("started")
+            self._refresh_btn()
+            self._log(i18n.t(self.s.lang, "log_started"))
 
     def stop(self):
         if self.worker:
             self.worker.stop_event.set()
-        self.btn.config(text="開始")
+        self._refresh_btn()
         self._show("IDLE", 0.0, self.status.get("loops", 0))
-        self._log("stopped")
+        self._log(i18n.t(self.s.lang, "log_stopped"))
 
     def capture_template(self):
         key = self.cap_key.get()
@@ -270,13 +326,13 @@ class App:
         def go():
             def done(path, error=None):
                 self.root.deiconify()
-                self._log(f"saved {path}" if path else (error or "capture cancelled"))
+                self._log(i18n.t(self.s.lang, "log_saved", path=path) if path else (error or i18n.t(self.s.lang, "log_cancelled")))
 
             try:
                 SnipOverlay(self.root, key, done, self.s.lang)
             except Exception as e:
                 self.root.deiconify()
-                self._log(f"capture error: {e}")
+                self._log(i18n.t(self.s.lang, "log_capture_error", error=e))
 
         self.root.after(300, go)
 
@@ -302,7 +358,7 @@ class App:
                 self._log(self.log_q.get_nowait())
             except queue.Empty:
                 break
-        if self.worker and self.worker.is_alive() and not self.worker.stop_event.is_set():
+        if self._running():
             self._show(self.status["state"], self.status["score"], self.status["loops"])
         self.root.after(200, self._tick)
 
@@ -328,6 +384,13 @@ def selftest(out_path):
             lines.append(f"import {mod}: ok")
         except Exception as e:
             lines.append(f"import {mod}: FAIL {e}")
+    for lang in config.LANGS:
+        ok = all(i18n.t(lang, key) != key for key in i18n.UI["en"]) and len(i18n.guide(lang)) == len(i18n.guide("en"))
+        lines.append(f"i18n {lang}: {'ok' if ok else 'FAIL'}")
+    try:
+        lines.append(f"focus: ok game_window={find_game(WinApi())}")
+    except Exception as e:
+        lines.append(f"focus: FAIL {e}")
     try:
         frame, _, _ = capture_screen(1)
         lines.append(f"capture: ok {frame.shape}")

@@ -15,11 +15,11 @@ from vision import find_template
 
 KEYS = ["play", "continue", "skip", "return_lobby"]
 
-def make_button(seed: int, size=(40, 120)) -> np.ndarray:
+def make_button(seed, size=(40, 120)):
     rng = np.random.default_rng(seed)
     return rng.integers(0, 255, size=(size[0], size[1], 3), dtype=np.uint8)
 
-def make_frame(button=None, pos=(300, 200), shape=(600, 900)) -> np.ndarray:
+def make_frame(button=None, pos=(300, 200), shape=(600, 900)):
     frame = np.full((shape[0], shape[1], 3), 30, dtype=np.uint8)
     if button is not None:
         h, w = button.shape[:2]

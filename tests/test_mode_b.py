@@ -15,10 +15,10 @@ from state_machine import State
 
 KEYS = ["play", "hud", "menu_btn", "menu_return", "claim"]
 
-def make_button(seed: int, size=(40, 120)) -> np.ndarray:
+def make_button(seed, size=(40, 120)):
     return np.random.default_rng(seed).integers(0, 255, size=(size[0], size[1], 3), dtype=np.uint8)
 
-def make_frame(*placed, shape=(600, 900)) -> np.ndarray:
+def make_frame(*placed, shape=(600, 900)):
     frame = np.full((shape[0], shape[1], 3), 30, dtype=np.uint8)
     for btn, (x, y) in placed:
         h, w = btn.shape[:2]

@@ -50,7 +50,7 @@ def plate_filename(key):
 def uses_template(key, lang):
     return not (lang in PLATE_LANGS and key in PLATE_UNUSED)
 
-def template_filename(key, lang="ja"):
+def template_filename(key, lang = "ja"):
     name = TEMPLATE_NAMES[key]
     if key in LANG_INDEPENDENT:
         return name
@@ -73,10 +73,10 @@ def bundled_assets_dir():
         return os.path.join(getattr(sys, "_MEIPASS", base_dir()), "assets_default")
     return assets_dir()
 
-def external_template_path(key, lang="ja"):
+def external_template_path(key, lang = "ja"):
     return os.path.join(assets_dir(), template_filename(key, lang))
 
-def template_path(key, lang="ja"):
+def template_path(key, lang = "ja"):
     ext = external_template_path(key, lang)
     if os.path.isfile(ext):
         return ext

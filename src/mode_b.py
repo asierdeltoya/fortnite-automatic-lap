@@ -47,7 +47,7 @@ class ModeB:
         self._t0 = now
         return StepResult(self.state, score, False, note)
 
-    def step(self, frame, ox=0, oy=0):
+    def step(self, frame, ox = 0, oy = 0):
         st = self.state
         if st is State.IDLE:
             return StepResult(st, note="idle")

@@ -1,8 +1,9 @@
 import random
-import threading
 import time
 
 import pydirectinput
+
+from focus import ensure_game_foreground
 
 
 class AntiAfk:
@@ -12,6 +13,7 @@ class AntiAfk:
 
     def press_once(self, stop):
         key = random.choice(self.s.afk_keys)
+        ensure_game_foreground()
         pydirectinput.keyDown(key)
         try:
             stop.wait(self.s.afk_hold)

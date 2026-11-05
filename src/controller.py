@@ -3,6 +3,8 @@ import time
 
 import pydirectinput
 
+from focus import ensure_game_foreground
+
 
 class Controller:
     def __init__(self, settings):
@@ -31,6 +33,7 @@ class Controller:
 
     def press(self, key):
         time.sleep(random.uniform(self.s.delay_min, self.s.delay_max))
+        ensure_game_foreground()
         self._press(key)
 
     def ready(self):

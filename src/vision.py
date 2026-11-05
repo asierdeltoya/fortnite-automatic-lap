@@ -43,8 +43,8 @@ def capture_screen(monitor_index=1, region=None):
 def find_template(
     frame,
     template,
-    threshold=0.82,
-    scales=(0.9, 0.95, 1.0, 1.05, 1.1),
+    threshold = 0.82,
+    scales = (0.9, 0.95, 1.0, 1.05, 1.1),
 ):
     fg = _gray(frame)
     tg = _gray(template)
@@ -81,7 +81,7 @@ def _match(frame, template, scale):
 def find_plate(
     frame,
     plate,
-    scales=(0.9, 0.95, 1.0, 1.05, 1.1),
+    scales = (0.9, 0.95, 1.0, 1.05, 1.1),
 ):
     fh, fw = frame.shape[:2]
     x0, y0 = int(plate.roi[0] * fw), int(plate.roi[1] * fh)
