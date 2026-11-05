@@ -24,20 +24,24 @@ _enable_dpi_awareness()
 import config
 import i18n
 from anti_afk import AntiAfk
-from config import Settings
 from controller import Controller
 from focus import WinApi, find_game
 from mode_b import ModeB
 from state_machine import State, StateMachine
-from vision import capture_screen, find_template, load_template_auto
+from vision import capture_screen, find_template, list_monitors, load_template_auto
 
 TITLE = "twitter:4z5pk"
+LOG_MAX_LINES = 500
 
 def load_templates(lang):
     return {
         k: (load_template_auto(config.template_path(k, lang), config.PLATES.get(k)) if config.uses_template(k, lang) else None)
         for k in config.TEMPLATE_NAMES
     }
+
+def _fmt_duration(seconds):
+    seconds = int(seconds)
+    return f"{seconds // 3600:d}:{seconds // 60 % 60:02d}:{seconds % 60:02d}"
 
 class Worker(threading.Thread):
     def __init__(self, settings, log_q, status):
@@ -82,7 +86,7 @@ class Worker(threading.Thread):
                     sm.start()
                 frame, ox, oy = capture_screen(self.s.monitor_index)
                 r = sm.step(frame, ox, oy)
-                self.status.update(state=r.state.value, score=r.score, loops=sm.loops)
+                self.status.update(state=r.state.value, score=r.score, loops=sum(m.loops for m in machines.values()))
                 if r.note != last_note or r.clicked or abs(r.score - last_score) > 0.1:
                     self.log_q.put(f"[{r.state.value}] {r.note} ({r.score:.2f}/{self.s.threshold:.2f})")
                     last_note, last_score = r.note, r.score
@@ -94,12 +98,14 @@ class Worker(threading.Thread):
 
 class SnipOverlay:
 
-    def __init__(self, root, key, on_done, lang = "ja"):
+    def __init__(self, root, key, on_done, lang = "ja", monitor_index = 1):
         self.key, self.on_done, self.lang = key, on_done, lang
-        frame, _, _ = capture_screen(1)
+        frame, ox, oy = capture_screen(monitor_index)
         self.img = Image.fromarray(frame[:, :, ::-1])
+        w, h = self.img.size
         self.top = tk.Toplevel(root)
-        self.top.attributes("-fullscreen", True)
+        self.top.overrideredirect(True)
+        self.top.geometry(f"{w}x{h}+{ox}+{oy}")
         self.top.attributes("-topmost", True)
         self.photo = ImageTk.PhotoImage(self.img)
         self.cv = tk.Canvas(self.top, cursor="cross", highlightthickness=0)
@@ -110,7 +116,9 @@ class SnipOverlay:
         self.cv.bind("<ButtonPress-1>", self._down)
         self.cv.bind("<B1-Motion>", self._drag)
         self.cv.bind("<ButtonRelease-1>", self._up)
+        self.cv.bind("<ButtonPress-3>", lambda e: self._close(None))
         self.top.bind("<Escape>", lambda e: self._close(None))
+        self.top.focus_force()
 
     def _down(self, e):
         self.start = (e.x, e.y)
@@ -142,17 +150,20 @@ class SnipOverlay:
 
 class App:
     def __init__(self):
-        self.s = Settings()
+        self.s = config.load_settings()
         self.log_q = queue.Queue()
         self.status = {"state": State.IDLE.value, "score": 0.0, "loops": 0}
         self.worker = None
         self._tr = []
+        self.t_start = None
+        self.t_end = None
+        self._save_job = None
 
         self.root = tk.Tk()
         self.root.title("pk-auto")
         r = self.root
         k = r.winfo_fpixels("1i") / 96.0
-        r.geometry(f"{int(480 * k)}x{int(690 * k)}")
+        r.geometry(f"{int(480 * k)}x{int(740 * k)}")
 
         ttk.Label(r, text=TITLE, font=("Segoe UI", 16, "bold")).pack(pady=(8, 0))
 
@@ -176,7 +187,9 @@ class App:
 
     def _build_control(self, r):
         self.info_var = tk.StringVar()
+        self.time_var = tk.StringVar()
         ttk.Label(r, textvariable=self.info_var).pack(pady=(6, 0))
+        ttk.Label(r, textvariable=self.time_var).pack()
 
         row = ttk.Frame(r)
         row.pack(pady=6)
@@ -193,12 +206,27 @@ class App:
         lang_box.pack(side="left")
         lang_box.bind("<<ComboboxSelected>>", self._on_lang)
 
+        mon_row = ttk.Frame(r)
+        mon_row.pack(pady=(0, 4))
+        self._l(ttk.Label(mon_row), "monitor").pack(side="left", padx=4)
+        try:
+            monitors = list_monitors()
+        except Exception:
+            monitors = []
+        self.mon_labels = [f"{i}: {w}x{h}" for i, (w, h) in enumerate(monitors, start=1)] or ["1"]
+        if self.s.monitor_index > len(self.mon_labels):
+            self.s.monitor_index = 1
+        self.mon_var = tk.StringVar(value=self.mon_labels[self.s.monitor_index - 1])
+        mon_box = ttk.Combobox(mon_row, textvariable=self.mon_var, values=self.mon_labels, width=16, state="readonly")
+        mon_box.pack(side="left")
+        mon_box.bind("<<ComboboxSelected>>", self._on_monitor)
+
         self.mode_var = tk.StringVar(value=self.s.mode)
         for code in config.MODES:
             self._l(ttk.Radiobutton(r, value=code, variable=self.mode_var, command=self._on_mode), f"mode_{code}").pack(anchor="w", padx=16)
         wait_row = ttk.Frame(r)
         wait_row.pack(pady=2)
-        self.wait_b_var = tk.StringVar(value=f"{self.s.wait_b}")
+        self.wait_b_var = tk.StringVar(value=f"{self.s.wait_b:g}")
         self._l(ttk.Label(wait_row), "b_pre").pack(side="left")
         ttk.Spinbox(wait_row, from_=10, to=600, increment=5, width=5, textvariable=self.wait_b_var).pack(side="left", padx=2)
         self._l(ttk.Label(wait_row), "b_post").pack(side="left")
@@ -206,14 +234,14 @@ class App:
 
         self.afk_var = tk.BooleanVar(value=self.s.afk_enabled)
         self._l(
-            ttk.Checkbutton(r, variable=self.afk_var, command=lambda: setattr(self.s, "afk_enabled", self.afk_var.get())),
+            ttk.Checkbutton(r, variable=self.afk_var, command=lambda: self._set("afk_enabled", self.afk_var.get())),
             "afk_check",
         ).pack()
 
         afk_row = ttk.Frame(r)
         afk_row.pack(pady=2)
-        self.afk_int_var = tk.StringVar(value=f"{self.s.afk_interval}")
-        self.afk_hold_var = tk.StringVar(value=f"{self.s.afk_hold}")
+        self.afk_int_var = tk.StringVar(value=f"{self.s.afk_interval:g}")
+        self.afk_hold_var = tk.StringVar(value=f"{self.s.afk_hold:g}")
         self._l(ttk.Label(afk_row), "afk_pre").pack(side="left")
         ttk.Spinbox(afk_row, from_=1, to=600, increment=1, width=5, textvariable=self.afk_int_var).pack(side="left", padx=2)
         self._l(ttk.Label(afk_row), "afk_mid").pack(side="left")
@@ -274,22 +302,52 @@ class App:
     def _running(self):
         return bool(self.worker and self.worker.is_alive() and not self.worker.stop_event.is_set())
 
+    def _stopping(self):
+        return bool(self.worker and self.worker.is_alive() and self.worker.stop_event.is_set())
+
     def _refresh_btn(self):
-        self.btn.config(text=i18n.t(self.s.lang, "stop" if self._running() else "start"))
+        if self._running():
+            self.btn.config(text=i18n.t(self.s.lang, "stop"), state="normal")
+        elif self._stopping():
+            self.btn.config(text=i18n.t(self.s.lang, "stopping"), state="disabled")
+        else:
+            self.btn.config(text=i18n.t(self.s.lang, "start"), state="normal")
+
+    def _set(self, attr, value):
+        setattr(self.s, attr, value)
+        self._save_soon()
+
+    def _save_soon(self):
+        if self._save_job is not None:
+            self.root.after_cancel(self._save_job)
+        self._save_job = self.root.after(800, self._save_now)
+
+    def _save_now(self):
+        self._save_job = None
+        try:
+            config.save_settings(self.s)
+        except Exception as e:
+            self._log(i18n.t(self.s.lang, "log_save_error", error=e))
 
     def _on_th(self, _v):
-        self.s.threshold = round(self.th_var.get(), 2)
+        self._set("threshold", round(self.th_var.get(), 2))
         self.th_lbl.config(text=f"{self.s.threshold:.2f}")
 
     def _on_lang(self, _event=None):
         for code, name in config.LANGS.items():
             if name == self.lang_var.get():
-                self.s.lang = code
+                self._set("lang", code)
                 self._apply_lang()
                 self._log(i18n.t(code, "log_language", name=name))
 
+    def _on_monitor(self, _event=None):
+        label = self.mon_var.get()
+        if label in self.mon_labels:
+            self._set("monitor_index", self.mon_labels.index(label) + 1)
+            self._log(i18n.t(self.s.lang, "log_monitor", name=label))
+
     def _on_mode(self):
-        self.s.mode = self.mode_var.get()
+        self._set("mode", self.mode_var.get())
         self._log(i18n.t(self.s.lang, "log_mode", name=i18n.t(self.s.lang, f"mode_{self.s.mode}")))
 
     def _on_afk_num(self, attr, var, lo, hi):
@@ -298,23 +356,36 @@ class App:
         except ValueError:
             return
         if lo <= v <= hi:
-            setattr(self.s, attr, v)
+            self._set(attr, v)
 
     def _show(self, state, score, loops):
         self.info_var.set(i18n.t(self.s.lang, "info", state=state, score=score, loops=loops))
+        if self.t_start is None:
+            self.time_var.set("")
+            return
+        elapsed = (self.t_end or time.monotonic()) - self.t_start
+        rate = i18n.t(self.s.lang, "rate", rate=loops / (elapsed / 3600)) if elapsed >= 300 else ""
+        self.time_var.set(i18n.t(self.s.lang, "time", elapsed=_fmt_duration(elapsed), rate=rate))
 
     def toggle(self):
         if self._running():
             self.stop()
-        else:
-            self.worker = Worker(self.s, self.log_q, self.status)
-            self.worker.start()
-            self._refresh_btn()
-            self._log(i18n.t(self.s.lang, "log_started"))
+        elif not self._stopping():
+            self.start()
+
+    def start(self):
+        self.status.update(state=State.IDLE.value, score=0.0, loops=0)
+        self.worker = Worker(self.s, self.log_q, self.status)
+        self.worker.start()
+        self.t_start, self.t_end = time.monotonic(), None
+        self._refresh_btn()
+        self._log(i18n.t(self.s.lang, "log_started"))
 
     def stop(self):
-        if self.worker:
-            self.worker.stop_event.set()
+        if not self._running():
+            return
+        self.worker.stop_event.set()
+        self.t_end = time.monotonic()
         self._refresh_btn()
         self._show("IDLE", 0.0, self.status.get("loops", 0))
         self._log(i18n.t(self.s.lang, "log_stopped"))
@@ -329,7 +400,7 @@ class App:
                 self._log(i18n.t(self.s.lang, "log_saved", path=path) if path else (error or i18n.t(self.s.lang, "log_cancelled")))
 
             try:
-                SnipOverlay(self.root, key, done, self.s.lang)
+                SnipOverlay(self.root, key, done, self.s.lang, self.s.monitor_index)
             except Exception as e:
                 self.root.deiconify()
                 self._log(i18n.t(self.s.lang, "log_capture_error", error=e))
@@ -339,7 +410,7 @@ class App:
     def _start_hotkey(self):
         def listen():
             try:
-                keyboard.add_hotkey("f8", lambda: self.root.after(0, self.stop))
+                keyboard.add_hotkey("f8", lambda: self.root.after(0, self.toggle))
                 keyboard.wait()
             except Exception as e:
                 self.log_q.put(f"hotkey error: {e}")
@@ -349,6 +420,9 @@ class App:
     def _log(self, msg):
         self.log.config(state="normal")
         self.log.insert("end", f"{time.strftime('%H:%M:%S')} {msg}\n")
+        lines = int(self.log.index("end-1c").split(".")[0])
+        if lines > LOG_MAX_LINES:
+            self.log.delete("1.0", f"{lines - LOG_MAX_LINES + 1}.0")
         self.log.see("end")
         self.log.config(state="disabled")
 
@@ -360,9 +434,15 @@ class App:
                 break
         if self._running():
             self._show(self.status["state"], self.status["score"], self.status["loops"])
+        elif self.worker and not self.worker.is_alive() and str(self.btn.cget("state")) == "disabled":
+            self._refresh_btn()
+            self._show("IDLE", 0.0, self.status.get("loops", 0))
         self.root.after(200, self._tick)
 
     def _quit(self):
+        if self._save_job is not None:
+            self.root.after_cancel(self._save_job)
+        self._save_now()
         if self.worker:
             self.worker.stop_event.set()
             self.worker.join(timeout=3)

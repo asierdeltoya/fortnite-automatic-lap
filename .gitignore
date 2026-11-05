@@ -8,3 +8,5 @@ build_obf/
 *.spec
 *.pfx
 *.p12
+pk-auto-config.json
+pk-auto-config.json.tmp

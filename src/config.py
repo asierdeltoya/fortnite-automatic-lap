@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from dataclasses import dataclass
@@ -102,3 +103,55 @@ class Settings:
     afk_interval: float = 10.0
     afk_hold: float = 3.0
     afk_keys: tuple = ("w", "a", "s", "d")
+
+SAVED_FIELDS = (
+    "threshold", "lang", "mode", "wait_b",
+    "afk_enabled", "afk_interval", "afk_hold", "monitor_index",
+)
+
+LIMITS = {
+    "threshold": (0.5, 0.95),
+    "wait_b": (10.0, 600.0),
+    "afk_interval": (1.0, 600.0),
+    "afk_hold": (0.5, 30.0),
+    "monitor_index": (1, 16),
+}
+
+def settings_path():
+    return os.path.join(base_dir(), "pk-auto-config.json")
+
+def load_settings(path=None):
+    """Settings saved by the window, or the defaults if there are none."""
+    s = Settings()
+    try:
+        with open(path or settings_path(), encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return s
+    if not isinstance(data, dict):
+        return s
+    for k in SAVED_FIELDS:
+        if k not in data:
+            continue
+        default, v = getattr(s, k), data[k]
+        if isinstance(default, bool):
+            if isinstance(v, bool):
+                setattr(s, k, v)
+        elif isinstance(default, (int, float)):
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                lo, hi = LIMITS.get(k, (v, v))
+                setattr(s, k, type(default)(min(max(v, lo), hi)))
+        elif isinstance(v, str):
+            setattr(s, k, v)
+    if s.lang not in LANGS:
+        s.lang = Settings.lang
+    if s.mode not in MODES:
+        s.mode = Settings.mode
+    return s
+
+def save_settings(s, path=None):
+    path = path or settings_path()
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({k: getattr(s, k) for k in SAVED_FIELDS}, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
