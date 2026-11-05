@@ -3,7 +3,7 @@
 2. Don't give up after a few seconds; patiently wait about a minute after starting
 3. Try disconnecting the controller
 # ダウンロードリンク(Download link)
-## https://github.com/ppkk12/fortnite-automatic-lap/releases/download/v1.2/pk-auto-v1.2.exe (japanese/english/Español/Português/Русский)Recommended
+## https://github.com/ppkk12/fortnite-automatic-lap/releases/download/v1.3/pk-auto.discord.exe (japanese/english/Español/Português/Русский)(discord)Recommended
 ＊Español/Português/Русскийこの３つの言語は動作確認してません。失敗の確率を下げたいのならば英語or日本語を推奨。
 ↑最新
 <img width="1535" height="954" alt="image" src="https://github.com/user-attachments/assets/8844c270-6ce9-4a8b-95bc-cffc1628dd9c" />
