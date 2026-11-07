@@ -45,6 +45,9 @@ def island_box(image):
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     water = cv2.inRange(hsv, WATER_LOW, WATER_HIGH)
     land = cv2.bitwise_not(water)
+    # Dark UI panels and map borders are not island: without this the frame
+    # around the map can win as the biggest "land" component.
+    land[np.where(hsv[:, :, 2] < 55, True, False)] = 0
     land = cv2.morphologyEx(land, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
     land = cv2.morphologyEx(land, cv2.MORPH_OPEN, np.ones((15, 15), np.uint8))
     contours = cv2.findContours(land, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
@@ -55,6 +58,8 @@ def island_box(image):
         if w < 0.25 * width or h < 0.25 * height:
             continue
         if cv2.contourArea(contour) < 0.06 * width * height:
+            continue
+        if x <= 2 and y <= 2 and x + w >= width - 2 and y + h >= height - 2:
             continue
         if best is None or w * h > best[2] * best[3]:
             best = (x, y, w, h)
