@@ -108,7 +108,9 @@ def chest_template_paths():
     return [
         os.path.join(folder, name)
         for name in sorted(os.listdir(folder))
-        if name.startswith("chest") and name.endswith(".png") and not name.endswith("_plate.png")
+        if name.startswith("chest") and name.endswith(".png")
+        and not name.endswith("_plate.png")
+        and name not in ("chest.png", "chest_map.png")
     ]
 
 @dataclass

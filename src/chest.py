@@ -32,6 +32,25 @@ DETECT_SCALE = 0.5
 VERIFY_SCALES = (0.85, 1.0, 1.15)
 VERIFY_THRESHOLD = 0.55
 
+# The current chest has purple gems and red eyes; golden weapons do not. A few
+# pixels of either colour are a strong hint that a golden blob is a chest.
+GEM_MIN_PIXELS = 6
+GEM_BONUS = 0.15
+
+
+def count_gem_pixels(frame, match):
+    """Purple or red pixels inside a candidate box (chest gems and eyes)."""
+    x0, y0, x1, y1 = match.box
+    x0, y0 = max(0, x0), max(0, y0)
+    x1, y1 = min(frame.shape[1], x1), min(frame.shape[0], y1)
+    if x1 <= x0 or y1 <= y0:
+        return 0
+    hsv = cv2.cvtColor(frame[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+    hue, sat, val = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+    purple = (hue >= 130) & (hue <= 170) & (sat >= 70) & (val >= 60)
+    red = ((hue <= 6) | (hue >= 172)) & (sat >= 110) & (val >= 80)
+    return int((purple | red).sum())
+
 
 def find_gold(frame, threshold = GOLD_THRESHOLD, min_area = MIN_AREA, max_area = MAX_AREA):
     """Gold-coloured blobs that could be a chest, best first."""

@@ -6,7 +6,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from chest import ChestFinder, find_gold
+from chest import ChestFinder, count_gem_pixels, find_gold
 from detect import Match, find_all, frame_diff, nms
 
 GOLD = (46, 163, 224)  # BGR for the gold of a chest
@@ -96,3 +96,31 @@ def test_match_scales_and_box():
     assert match.area == 800
     bigger = match.scaled(2.0)
     assert (bigger.x, bigger.y, bigger.w, bigger.h) == (200, 100, 80, 40)
+
+
+def test_gems_count_and_boost_a_chest():
+    frame = scene([(400, 300, 90, 60)])
+    match = Match(445, 330, 90, 60, 0.6)
+    assert count_gem_pixels(frame, match) == 0
+
+    gemmed = frame.copy()
+    cv2.rectangle(gemmed, (420, 310), (440, 330), (200, 40, 180), -1)   # purple
+    cv2.rectangle(gemmed, (460, 310), (480, 330), (30, 30, 220), -1)    # red
+    assert count_gem_pixels(gemmed, match) >= 200
+
+    finder = ChestFinder()
+    base = finder.detect(frame)
+    boosted = finder.detect(gemmed)
+    assert base is not None and boosted is not None
+    assert boosted.score >= base.score
+
+
+def test_only_real_chest_templates_are_loaded(tmp_path, monkeypatch):
+    import config
+    monkeypatch.setattr(config, "assets_dir", lambda: str(tmp_path))
+    (tmp_path / "chest.png").write_bytes(b"x")
+    (tmp_path / "chest_map.png").write_bytes(b"x")
+    (tmp_path / "chest_btn.png").write_bytes(b"x")
+    (tmp_path / "chest_2.png").write_bytes(b"x")
+    names = [os.path.basename(p) for p in config.chest_template_paths()]
+    assert names == ["chest_2.png", "chest_btn.png"]

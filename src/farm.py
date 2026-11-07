@@ -19,7 +19,7 @@ from chest_mode import CState, ChestMode
 from detect import frame_diff
 from explore import Explorer
 from geometry import distance
-from mapvision import PlayerFinder, island_box, load_reference, normalize
+from mapvision import MapAligner, PlayerFinder, island_box, load_reference, normalize
 from navigation import Navigator
 from state_machine import POPUP_KEYS
 from vision import Plate, find_plate, find_template
@@ -100,11 +100,14 @@ class FarmMode:
 
     def _load_assets(self):
         try:
-            _, box, chests = load_reference()
+            image, box, chests = load_reference()
         except Exception:
-            chests, box = [], None
-        self.route_ref = list(chests) if chests and len(chests) >= 3 else []
+            image, box, chests = None, None, []
+        self.reference = image
         self.ref_box = box
+        self.ref_size = (image.shape[1], image.shape[0]) if image is not None else (0, 0)
+        self.aligner = MapAligner(image) if image is not None else None
+        self.route_ref = list(chests) if chests and len(chests) >= 3 else []
         self.ready = bool(self.route_ref and self.player.ready)
         if self.ready:
             self.startup_note = f"farm ready: {len(self.route_ref)} chests on the reference map"
@@ -421,12 +424,19 @@ class FarmMode:
 
     def _read_map(self, frame):
         box = island_box(frame)
+        arrow = self.player.find(frame, box) if box is not None else self.player.find(frame)
+        if arrow is None:
+            return None
+        if self.aligner is not None and self.aligner.ready:
+            matrix = self.aligner.locate(frame)
+            if matrix is not None:
+                point = self.aligner.transform(matrix, (arrow.x, arrow.y))
+                if point is not None and self.ref_size[0] and self.ref_size[1]:
+                    return (point[0] / self.ref_size[0], point[1] / self.ref_size[1])
+        # Fallback: both maps show the whole island, so match their land boxes.
         if box is None:
             return None
-        found = self.player.find(frame, box)
-        if found is None:
-            return None
-        return normalize((found.x, found.y), box)
+        return normalize((arrow.x, arrow.y), box)
 
     def _act(self, action):
         self.ctrl.move(action.walk, action.strafe)

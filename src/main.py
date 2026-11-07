@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 import tkinter as tk
-from tkinter import ttk
+from tkinter import filedialog, ttk
 
 import keyboard
 from PIL import Image, ImageTk
@@ -28,7 +28,7 @@ from chest import ChestFinder
 from controller import Controller
 from farm import FarmMode
 from focus import WinApi, find_game
-from mapvision import PlayerFinder, load_reference, render_debug, save_image
+from mapvision import MapAligner, PlayerFinder, find_reference_chests, island_box, load_reference, normalize, render_debug, save_image
 from mode_b import ModeB
 from state_machine import State, StateMachine
 from vision import capture_screen, close_thread_capture, find_template, list_monitors, load_template_auto
@@ -304,6 +304,7 @@ class App:
 
         map_row = ttk.Frame(r)
         map_row.pack(pady=(0, 4))
+        self._l(ttk.Button(map_row, command=self.choose_map), "choose_map").pack(side="left", padx=4)
         self._l(ttk.Button(map_row, command=self.test_map), "test_map").pack(side="left", padx=4)
 
         self.log = tk.Text(r, height=9, state="disabled", font=("Consolas", 9))
@@ -523,6 +524,27 @@ class App:
         else:
             self._log(i18n.t(self.s.lang, "log_chest_test", score=found.score))
 
+    def choose_map(self):
+        path = filedialog.askopenfilename(
+            title = i18n.t(self.s.lang, "choose_map"),
+            filetypes = [("PNG/JPG", "*.png *.jpg *.jpeg *.webp"), ("Todos", "*.*")],
+        )
+        if not path:
+            return
+        image = load_template_auto(path)
+        box = (0, 0, image.shape[1], image.shape[0]) if image is not None else None
+        chests = find_reference_chests(image, box) if box is not None else []
+        if not chests or len(chests) < 3:
+            self._log(i18n.t(self.s.lang, "log_map_bad"))
+            return
+        try:
+            os.makedirs(config.assets_dir(), exist_ok = True)
+            save_image(config.map_route_path(), image)
+        except Exception as e:
+            self._log(i18n.t(self.s.lang, "log_capture_error", error=e))
+            return
+        self._log(i18n.t(self.s.lang, "log_map_chosen", chests = len(chests)))
+
     def test_map(self):
         try:
             frame, _, _ = capture_screen(self.s.monitor_index)
@@ -530,7 +552,7 @@ class App:
             self._log(i18n.t(self.s.lang, "log_capture_error", error=e))
             return
         try:
-            _, box, chests = load_reference()
+            reference, box, chests = load_reference()
         except FileNotFoundError:
             self._log(i18n.t(self.s.lang, "log_map_no_ref"))
             return
@@ -539,8 +561,19 @@ class App:
             return
         try:
             template = load_template_auto(config.template_path("map_player", self.s.lang))
-            player = PlayerFinder(template).fix(frame)
-            debug = render_debug(frame, box, player, chests, chests)
+            island = island_box(frame)
+            arrow = PlayerFinder(template).find(frame, island) if island is not None else PlayerFinder(template).find(frame)
+            player = None
+            if arrow is not None:
+                aligner = MapAligner(reference)
+                matrix = aligner.locate(frame)
+                if matrix is not None:
+                    point = aligner.transform(matrix, (arrow.x, arrow.y))
+                    if point is not None:
+                        player = normalize(point, box)
+                if player is None and island is not None:
+                    player = normalize((arrow.x, arrow.y), island)
+            debug = render_debug(reference, box, player, chests, chests)
             os.makedirs(config.assets_dir(), exist_ok = True)
             path = os.path.join(config.assets_dir(), "map_check.png")
             save_image(path, debug)

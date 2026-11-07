@@ -67,7 +67,10 @@ def env(monkeypatch):
     return mode, ctrl, keyboard, clock
 
 
-def test_without_the_map_files_it_falls_back_to_roaming():
+def test_without_the_map_files_it_falls_back_to_roaming(monkeypatch):
+    def missing(*args, **kwargs):
+        raise FileNotFoundError("no map")
+    monkeypatch.setattr(farm, "load_reference", missing)
     mode = FarmMode(Settings(), {}, FakeController())
     assert mode.ready is False
     assert "chest_map.png" in mode.startup_note

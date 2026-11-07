@@ -10,3 +10,8 @@ build_obf/
 *.p12
 pk-auto-config.json
 pk-auto-config.json.tmp
+
+# personal map assets (each player saves their own)
+assets/chest_map.png
+assets/chest.png
+build_log.txt
