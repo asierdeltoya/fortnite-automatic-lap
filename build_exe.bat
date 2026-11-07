@@ -23,11 +23,15 @@ echo      continue_btn.png      - "Continue" button after elimination
 echo      skip_btn.png          - "Skip" button on the XP screen
 echo      return_lobby_btn.png  - "Return to Lobby" button on the summary
 echo      claim_btn.png         - reward screen "Claim all" button
+echo      chest_btn.png         - one chest, for mode C (optional)
 echo      popup_btn.png         - optional: any other pop-up button to dismiss
 echo    English UI images use the suffix _en ^(play_btn_en.png, ...^).
 echo 3. Mode A = normal loop ^(Continue / Skip / Return to Lobby^). Mode B = wait on the
 echo    pre-match island ^(default 90 s^), then Esc, the hamburger tab, "Return to Lobby",
-echo    and queue again. Switch any time in the window; B works in every game language.
+echo    and queue again. Mode C = walk the map and open golden chests ^(10 per
+echo    match or 10 minutes^); crop a chest with the crop button and pick "chest"
+echo    so golden weapons are not mistaken for chests. Switch any time in the
+echo    window; B works in every game language.
 echo.
 echo Warning: automation may violate the game's terms of service and anti-cheat
 echo rules. Use at your own risk.

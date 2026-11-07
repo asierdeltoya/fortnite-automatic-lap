@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import sys
 from dataclasses import dataclass
@@ -16,11 +17,17 @@ TEMPLATE_NAMES = {
     "hud": "hud_btn.png",
     "menu_btn": "menu_btn.png",
     "menu_return": "menu_return_btn.png",
+
+    "chest": "chest_btn.png",
 }
 
-MODES = {"A": "A: 通常ループ (続行→スキップ→ロビーへ)", "B": "B: 待機島で待ってEscから退出"}
+MODES = {
+    "A": "A: 通常ループ (続行→スキップ→ロビーへ)",
+    "B": "B: 待機島で待ってEscから退出",
+    "C": "C: マップを歩いて宝箱を探す",
+}
 
-OPTIONAL_TEMPLATES = {"popup", "claim", "claim_single"}
+OPTIONAL_TEMPLATES = {"popup", "claim", "claim_single", "chest"}
 
 LANGS = {
     "ja": "日本語",
@@ -31,7 +38,7 @@ LANGS = {
 }
 PLATE_LANGS = ("es", "pt", "ru")
 
-LANG_INDEPENDENT = {"continue", "skip", "hud", "menu_btn", "menu_return"}
+LANG_INDEPENDENT = {"continue", "skip", "hud", "menu_btn", "menu_return", "chest"}
 
 PLATES = {
     "play": {"roi": (0.0, 0.70, 0.40, 1.0), "threshold": 0.92},
@@ -84,6 +91,21 @@ def template_path(key, lang = "ja"):
     bundled = os.path.join(bundled_assets_dir(), template_filename(key, lang))
     return bundled if os.path.isfile(bundled) else ext
 
+def chest_template_paths():
+    """Every chest image the player has cropped, in the assets folder.
+
+    `chest_btn.png` is the one saved by the crop button; extra files named
+    `chest*.png` are picked up as well so several chest skins can be used.
+    """
+    folder = assets_dir()
+    if not os.path.isdir(folder):
+        return []
+    return [
+        os.path.join(folder, name)
+        for name in sorted(os.listdir(folder))
+        if name.startswith("chest") and name.endswith(".png") and not name.endswith("_plate.png")
+    ]
+
 @dataclass
 class Settings:
     threshold: float = 0.82
@@ -104,9 +126,12 @@ class Settings:
     afk_hold: float = 3.0
     afk_keys: tuple = ("w", "a", "s", "d")
 
+    chest_threshold: float = 0.55
+
 SAVED_FIELDS = (
     "threshold", "lang", "mode", "wait_b",
     "afk_enabled", "afk_interval", "afk_hold", "monitor_index",
+    "chest_threshold",
 )
 
 LIMITS = {
@@ -115,6 +140,7 @@ LIMITS = {
     "afk_interval": (1.0, 600.0),
     "afk_hold": (0.5, 30.0),
     "monitor_index": (1, 16),
+    "chest_threshold": (0.3, 0.9),
 }
 
 def settings_path():
@@ -138,7 +164,7 @@ def load_settings(path=None):
             if isinstance(v, bool):
                 setattr(s, k, v)
         elif isinstance(default, (int, float)):
-            if isinstance(v, (int, float)) and not isinstance(v, bool):
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
                 lo, hi = LIMITS.get(k, (v, v))
                 setattr(s, k, type(default)(min(max(v, lo), hi)))
         elif isinstance(v, str):

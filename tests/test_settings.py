@@ -2,6 +2,7 @@ import json
 import os
 import sys
 
+import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -52,14 +53,33 @@ def _scene(btn, pos=(300, 200)):
     return frame
 
 
-def test_found_scale_is_remembered_and_still_matches():
-    btn = np.random.default_rng(3).integers(0, 255, size=(40, 120, 3), dtype=np.uint8)
+def test_big_template_is_found_repeatedly_and_absent_frames_stay_empty():
+    btn = np.random.default_rng(3).integers(0, 255, size=(80, 200, 3), dtype=np.uint8)
     scales = Settings().scales
-    m, _ = vision.find_template(_scene(btn), btn, 0.82, scales)
+    frame = _scene(btn, (100, 400))
+    for _ in range(6):
+        m, _ = vision.find_template(frame, btn, 0.82, scales)
+        assert m is not None and abs(m[0] - 200) <= 1 and abs(m[1] - 440) <= 1
+    m, score = vision.find_template(np.full((600, 900, 3), 30, np.uint8), btn, 0.82, scales)
+    assert m is None and score < 0.82
+
+
+def test_cheap_gate_still_finds_a_rescaled_big_template():
+    btn = np.random.default_rng(4).integers(0, 255, size=(80, 200, 3), dtype=np.uint8)
+    scaled = cv2.resize(btn, None, fx=1.1, fy=1.1, interpolation=cv2.INTER_LINEAR)
+    m, _ = vision.find_template(_scene(scaled), btn, 0.82, Settings().scales)
     assert m is not None
-    assert vision._prep_template(btn)["scale"] == 1.0
-    for _ in range(vision.FULL_SCAN_EVERY + 2):
-        m, _ = vision.find_template(_scene(btn, (100, 400)), btn, 0.82, scales)
-        assert m is not None and abs(m[0] - 160) <= 1 and abs(m[1] - 420) <= 1
-    m, _ = vision.find_template(np.full((600, 900, 3), 30, np.uint8), btn, 0.82, scales)
-    assert m is None
+
+
+def test_small_templates_are_never_gated():
+    btn = np.random.default_rng(5).integers(0, 255, size=(30, 30, 3), dtype=np.uint8)
+    m, _ = vision.find_template(_scene(btn), btn, 0.9, Settings().scales)
+    assert m is not None
+
+
+def test_nan_values_in_the_config_are_ignored(tmp_path):
+    path = tmp_path / "cfg.json"
+    path.write_text('{"threshold": NaN, "chest_threshold": Infinity}', encoding="utf-8")
+    s = config.load_settings(str(path))
+    assert s.threshold == Settings.threshold
+    assert s.chest_threshold == Settings.chest_threshold

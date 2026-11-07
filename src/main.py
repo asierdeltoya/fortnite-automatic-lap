@@ -24,11 +24,13 @@ _enable_dpi_awareness()
 import config
 import i18n
 from anti_afk import AntiAfk
+from chest import ChestFinder
+from chest_mode import ChestMode
 from controller import Controller
 from focus import WinApi, find_game
 from mode_b import ModeB
 from state_machine import State, StateMachine
-from vision import capture_screen, find_template, list_monitors, load_template_auto
+from vision import capture_screen, close_thread_capture, find_template, list_monitors, load_template_auto
 
 TITLE = "twitter:4z5pk"
 LOG_MAX_LINES = 500
@@ -63,38 +65,55 @@ class Worker(threading.Thread):
         templates = self._load_templates(lang)
 
         ctrl = Controller(self.s)
-        machines = {"A": StateMachine(self.s, templates, ctrl), "B": ModeB(self.s, templates, ctrl)}
+        machines = {
+            "A": StateMachine(self.s, templates, ctrl),
+            "B": ModeB(self.s, templates, ctrl),
+            "C": ChestMode(self.s, templates, ctrl),
+        }
         mode = self.s.mode if self.s.mode in machines else "A"
         sm = machines[mode]
         sm.start()
 
-        afk = AntiAfk(self.s, active=lambda: sm.state is State.IN_MATCH)
+        afk = AntiAfk(self.s, active = lambda: getattr(sm, "state", None) is State.IN_MATCH)
         afk_thread = threading.Thread(target=afk.run, args=(self.stop_event, self.log_q.put), daemon=True)
         afk_thread.start()
         last_note, last_score = "", -1.0
-        while not self.stop_event.is_set():
-            try:
-                if self.s.lang != lang:
-                    lang = self.s.lang
-                    templates = self._load_templates(lang)
-                    for m in machines.values():
-                        m.templates = templates
-                if self.s.mode != mode and self.s.mode in machines:
-                    sm.stop()
-                    mode = self.s.mode
-                    sm = machines[mode]
-                    sm.start()
-                frame, ox, oy = capture_screen(self.s.monitor_index)
-                r = sm.step(frame, ox, oy)
-                self.status.update(state=r.state.value, score=r.score, loops=sum(m.loops for m in machines.values()))
-                if r.note != last_note or r.clicked or abs(r.score - last_score) > 0.1:
-                    self.log_q.put(f"[{r.state.value}] {r.note} ({r.score:.2f}/{self.s.threshold:.2f})")
-                    last_note, last_score = r.note, r.score
-            except Exception as e:
-                self.log_q.put(f"error: {e}")
-            self.stop_event.wait(self.s.poll_interval)
-        afk_thread.join(timeout=2)
-        self.status.update(state=State.IDLE.value, score=0.0)
+        try:
+            while not self.stop_event.is_set():
+                try:
+                    if self.s.lang != lang:
+                        lang = self.s.lang
+                        templates = self._load_templates(lang)
+                        for m in machines.values():
+                            m.templates = templates
+                    if self.s.mode != mode and self.s.mode in machines:
+                        sm.stop()
+                        mode = self.s.mode
+                        sm = machines[mode]
+                        sm.start()
+                    frame, ox, oy = capture_screen(self.s.monitor_index)
+                    r = sm.step(frame, ox, oy)
+                    self.status.update(
+                        state=r.state.value,
+                        score=r.score,
+                        loops=sum(m.loops for m in machines.values()),
+                        chests=getattr(r, "chests", 0),
+                    )
+                    if r.note != last_note or r.clicked or abs(r.score - last_score) > 0.1:
+                        self.log_q.put(f"[{r.state.value}] {r.note} ({r.score:.2f}/{self.s.threshold:.2f})")
+                        last_note, last_score = r.note, r.score
+                except Exception as e:
+                    self.log_q.put(f"error: {e}")
+                # Chest hunting needs a quick look loop; the button modes are
+                # in no hurry and 2 s between frames is plenty.
+                self.stop_event.wait(0.15 if mode == "C" else self.s.poll_interval)
+        finally:
+            afk_thread.join(timeout=2)
+            for m in machines.values():
+                m.stop()
+            ctrl.release_all()
+            close_thread_capture()
+            self.status.update(state=State.IDLE.value, score=0.0)
 
 class SnipOverlay:
 
@@ -152,7 +171,7 @@ class App:
     def __init__(self):
         self.s = config.load_settings()
         self.log_q = queue.Queue()
-        self.status = {"state": State.IDLE.value, "score": 0.0, "loops": 0}
+        self.status = {"state": State.IDLE.value, "score": 0.0, "loops": 0, "chests": 0}
         self.worker = None
         self._tr = []
         self.t_start = None
@@ -163,7 +182,9 @@ class App:
         self.root.title("pk-auto")
         r = self.root
         k = r.winfo_fpixels("1i") / 96.0
-        r.geometry(f"{int(480 * k)}x{int(740 * k)}")
+        width = int(480 * k)
+        height = min(int(760 * k), r.winfo_screenheight() - int(80 * k))
+        r.geometry(f"{width}x{max(height, int(560 * k))}")
 
         ttk.Label(r, text=TITLE, font=("Segoe UI", 16, "bold")).pack(pady=(8, 0))
 
@@ -188,8 +209,10 @@ class App:
     def _build_control(self, r):
         self.info_var = tk.StringVar()
         self.time_var = tk.StringVar()
+        self.chest_var = tk.StringVar()
         ttk.Label(r, textvariable=self.info_var).pack(pady=(6, 0))
         ttk.Label(r, textvariable=self.time_var).pack()
+        ttk.Label(r, textvariable=self.chest_var).pack()
 
         row = ttk.Frame(r)
         row.pack(pady=6)
@@ -227,32 +250,43 @@ class App:
         wait_row = ttk.Frame(r)
         wait_row.pack(pady=2)
         self.wait_b_var = tk.StringVar(value=f"{self.s.wait_b:g}")
-        self._l(ttk.Label(wait_row), "b_pre").pack(side="left")
-        ttk.Spinbox(wait_row, from_=10, to=600, increment=5, width=5, textvariable=self.wait_b_var).pack(side="left", padx=2)
-        self._l(ttk.Label(wait_row), "b_post").pack(side="left")
+        self.wait_widgets = [
+            self._l(ttk.Label(wait_row), "b_pre"),
+            ttk.Spinbox(wait_row, from_=10, to=600, increment=5, width=5, textvariable=self.wait_b_var),
+            self._l(ttk.Label(wait_row), "b_post"),
+        ]
+        self.wait_widgets[0].pack(side="left")
+        self.wait_widgets[1].pack(side="left", padx=2)
+        self.wait_widgets[2].pack(side="left")
         self.wait_b_var.trace_add("write", lambda *_: self._on_afk_num("wait_b", self.wait_b_var, 10.0, 600.0))
 
         self.afk_var = tk.BooleanVar(value=self.s.afk_enabled)
-        self._l(
+        self.afk_check = self._l(
             ttk.Checkbutton(r, variable=self.afk_var, command=lambda: self._set("afk_enabled", self.afk_var.get())),
             "afk_check",
-        ).pack()
+        )
+        self.afk_check.pack()
 
         afk_row = ttk.Frame(r)
         afk_row.pack(pady=2)
         self.afk_int_var = tk.StringVar(value=f"{self.s.afk_interval:g}")
         self.afk_hold_var = tk.StringVar(value=f"{self.s.afk_hold:g}")
-        self._l(ttk.Label(afk_row), "afk_pre").pack(side="left")
-        ttk.Spinbox(afk_row, from_=1, to=600, increment=1, width=5, textvariable=self.afk_int_var).pack(side="left", padx=2)
-        self._l(ttk.Label(afk_row), "afk_mid").pack(side="left")
-        ttk.Spinbox(afk_row, from_=0.5, to=30, increment=0.5, width=5, textvariable=self.afk_hold_var).pack(side="left", padx=2)
-        self._l(ttk.Label(afk_row), "afk_post").pack(side="left")
+        self.afk_widgets = [
+            self._l(ttk.Label(afk_row), "afk_pre"),
+            ttk.Spinbox(afk_row, from_=1, to=600, increment=1, width=5, textvariable=self.afk_int_var),
+            self._l(ttk.Label(afk_row), "afk_mid"),
+            ttk.Spinbox(afk_row, from_=0.5, to=30, increment=0.5, width=5, textvariable=self.afk_hold_var),
+            self._l(ttk.Label(afk_row), "afk_post"),
+        ]
+        for i, widget in enumerate(self.afk_widgets):
+            widget.pack(side="left", padx=2 if i in (1, 3) else 0)
         self.afk_int_var.trace_add("write", lambda *_: self._on_afk_num("afk_interval", self.afk_int_var, 1.0, 600.0))
         self.afk_hold_var.trace_add("write", lambda *_: self._on_afk_num("afk_hold", self.afk_hold_var, 0.5, 30.0))
 
         self.th_var = tk.DoubleVar(value=self.s.threshold)
         self._l(ttk.Label(r), "threshold").pack()
-        ttk.Scale(r, from_=0.5, to=0.95, variable=self.th_var, command=self._on_th).pack(fill="x", padx=12)
+        self.th_scale = ttk.Scale(r, from_=0.5, to=0.95, variable=self.th_var, command=self._on_th)
+        self.th_scale.pack(fill="x", padx=12)
         self.th_lbl = ttk.Label(r, text=f"{self.s.threshold:.2f}")
         self.th_lbl.pack()
 
@@ -261,9 +295,11 @@ class App:
         self.cap_key = tk.StringVar(value="play")
         ttk.Combobox(cap, textvariable=self.cap_key, values=list(config.TEMPLATE_NAMES), width=14, state="readonly").pack(side="left", padx=4)
         self._l(ttk.Button(cap, command=self.capture_template), "crop").pack(side="left")
+        self._l(ttk.Button(cap, command=self.test_chests), "test_chest").pack(side="left", padx=4)
 
         self.log = tk.Text(r, height=9, state="disabled", font=("Consolas", 9))
         self.log.pack(fill="both", expand=True, padx=8, pady=6)
+        self._sync_mode_controls()
 
     def _build_guide(self, r):
         sb = ttk.Scrollbar(r, orient="vertical")
@@ -296,7 +332,7 @@ class App:
         self.nb.tab(self.ctl, text=i18n.t(lang, "tab_control"))
         self.nb.tab(self.gd, text=i18n.t(lang, "tab_guide"))
         self._refresh_btn()
-        self._show(self.status["state"], self.status["score"], self.status["loops"])
+        self._show(self.status["state"], self.status["score"], self.status["loops"], self.status.get("chests", 0))
         self._render_guide()
 
     def _running(self):
@@ -330,8 +366,32 @@ class App:
             self._log(i18n.t(self.s.lang, "log_save_error", error=e))
 
     def _on_th(self, _v):
-        self._set("threshold", round(self.th_var.get(), 2))
-        self.th_lbl.config(text=f"{self.s.threshold:.2f}")
+        if getattr(self, "_syncing", False):
+            return
+        lo, hi = config.LIMITS[self._threshold_attr()]
+        self._set(self._threshold_attr(), round(min(max(self.th_var.get(), lo), hi), 2))
+        self.th_lbl.config(text=f"{getattr(self.s, self._threshold_attr()):.2f}")
+
+    def _threshold_attr(self):
+        """The slider controls chest detection in mode C and buttons otherwise."""
+        return "chest_threshold" if self.s.mode == "C" else "threshold"
+
+    def _sync_mode_controls(self):
+        self._syncing = True
+        try:
+            mode = self.s.mode
+            enabled, disabled = ["!disabled"], ["disabled"]
+            for widget in self.wait_widgets:
+                widget.state(enabled if mode == "B" else disabled)
+            for widget in self.afk_widgets + [self.afk_check]:
+                widget.state(enabled if mode == "A" else disabled)
+            attr = self._threshold_attr()
+            lo, hi = config.LIMITS[attr]
+            self.th_scale.configure(from_=lo, to=hi)
+            self.th_var.set(getattr(self.s, attr))
+            self.th_lbl.config(text=f"{getattr(self.s, attr):.2f}")
+        finally:
+            self._syncing = False
 
     def _on_lang(self, _event=None):
         for code, name in config.LANGS.items():
@@ -348,6 +408,8 @@ class App:
 
     def _on_mode(self):
         self._set("mode", self.mode_var.get())
+        self._sync_mode_controls()
+        self._show(self.status["state"], self.status["score"], self.status["loops"], self.status.get("chests", 0))
         self._log(i18n.t(self.s.lang, "log_mode", name=i18n.t(self.s.lang, f"mode_{self.s.mode}")))
 
     def _on_afk_num(self, attr, var, lo, hi):
@@ -358,8 +420,9 @@ class App:
         if lo <= v <= hi:
             self._set(attr, v)
 
-    def _show(self, state, score, loops):
+    def _show(self, state, score, loops, chests = 0):
         self.info_var.set(i18n.t(self.s.lang, "info", state=state, score=score, loops=loops))
+        self.chest_var.set(i18n.t(self.s.lang, "chests", n=chests) if self.s.mode == "C" or chests else "")
         if self.t_start is None:
             self.time_var.set("")
             return
@@ -374,7 +437,7 @@ class App:
             self.start()
 
     def start(self):
-        self.status.update(state=State.IDLE.value, score=0.0, loops=0)
+        self.status.update(state=State.IDLE.value, score=0.0, loops=0, chests=0)
         self.worker = Worker(self.s, self.log_q, self.status)
         self.worker.start()
         self.t_start, self.t_end = time.monotonic(), None
@@ -387,7 +450,7 @@ class App:
         self.worker.stop_event.set()
         self.t_end = time.monotonic()
         self._refresh_btn()
-        self._show("IDLE", 0.0, self.status.get("loops", 0))
+        self._show("IDLE", 0.0, self.status.get("loops", 0), self.status.get("chests", 0))
         self._log(i18n.t(self.s.lang, "log_stopped"))
 
     def capture_template(self):
@@ -433,11 +496,23 @@ class App:
             except queue.Empty:
                 break
         if self._running():
-            self._show(self.status["state"], self.status["score"], self.status["loops"])
+            self._show(self.status["state"], self.status["score"], self.status["loops"], self.status.get("chests", 0))
         elif self.worker and not self.worker.is_alive() and str(self.btn.cget("state")) == "disabled":
             self._refresh_btn()
-            self._show("IDLE", 0.0, self.status.get("loops", 0))
+            self._show("IDLE", 0.0, self.status.get("loops", 0), self.status.get("chests", 0))
         self.root.after(200, self._tick)
+
+    def test_chests(self):
+        try:
+            frame, _, _ = capture_screen(self.s.monitor_index)
+            found = ChestFinder.from_assets(self.s.chest_threshold).detect(frame)
+        except Exception as e:
+            self._log(i18n.t(self.s.lang, "log_capture_error", error=e))
+            return
+        if found is None:
+            self._log(i18n.t(self.s.lang, "log_chest_none"))
+        else:
+            self._log(i18n.t(self.s.lang, "log_chest_test", score=found.score))
 
     def _quit(self):
         if self._save_job is not None:
