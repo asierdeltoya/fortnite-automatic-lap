@@ -26,6 +26,8 @@ MIN_MATCH_S = 12.0
 
 MAX_CHESTS_PER_MATCH = 10
 MATCH_LIMIT_S = 10 * 60.0
+OVERLAY_EVERY = 5
+OVERLAY_KEYS = ("continue", "skip", "return_lobby", "claim", "claim_single", "popup")
 ESC_RETRY_S = 8.0
 ESC_MAX_TRIES = 3
 EXIT_GIVE_UP_S = 6.0
@@ -64,6 +66,7 @@ class ChestMode:
         self._esc_tries = 0
         self._play_since = None
         self._prev = None
+        self._calls = 0
 
     def start(self):
         if self.state is CState.LOBBY:
@@ -85,7 +88,7 @@ class ChestMode:
             return self._lobby(now, frame, ox, oy, play, play_score)
         if self.state is CState.EXIT:
             return self._exit(now, frame, ox, oy, play)
-        return self._play(now, frame, play, play_score)
+        return self._play(now, frame, ox, oy, play, play_score)
 
     def _enter_match(self, now):
         self.state = CState.PLAY
@@ -93,6 +96,7 @@ class ChestMode:
         self._match_chests = 0
         self._play_since = None
         self._prev = None
+        self._calls = 0
         self.explorer.reset()
 
     def _lobby(self, now, frame, ox, oy, play, play_score):
@@ -105,7 +109,7 @@ class ChestMode:
                 return ChestResult(CState.LOBBY, self.chests, score, True, f"clicked {key} (stay)")
         return ChestResult(CState.LOBBY, self.chests, play_score, False, "waiting play")
 
-    def _play(self, now, frame, play, play_score):
+    def _play(self, now, frame, ox, oy, play, play_score):
         if play is not None:
             if self._play_since is None:
                 self._play_since = now
@@ -122,6 +126,17 @@ class ChestMode:
             self.ctrl.release_all()
             self._press_esc(now, first = True)
             return ChestResult(CState.EXIT, self.chests, 0.0, True, "leaving match")
+
+        # The match can also end on its own (eliminated or victory): click
+        # through the Continue / Skip / Return to Lobby screens so the lobby is
+        # reached instead of walking around a results screen.
+        self._calls += 1
+        if self._calls % OVERLAY_EVERY == 1:
+            for key in OVERLAY_KEYS:
+                found, score = self._find(key, frame)
+                if self._click(found, ox, oy):
+                    self.ctrl.release_all()
+                    return ChestResult(CState.PLAY, self.chests, score, True, f"clicked {key} (match over)")
 
         detection = self.finder.detect(frame)
         moved = None

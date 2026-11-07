@@ -64,7 +64,8 @@ def env(monkeypatch):
     clock = Clock()
     monkeypatch.setattr(chest_mode.time, "monotonic", clock)
     keyboard = {"play": False, "menu_return": False, "menu_btn": False}
-    templates = {key: object() for key in ("play", "menu_return", "menu_btn", "claim", "claim_single", "popup")}
+    templates = {key: object() for key in ("play", "menu_return", "menu_btn", "continue", "skip", "return_lobby",
+                "claim", "claim_single", "popup")}
 
     def fake_find(frame, template, threshold, scales):
         for key, value in templates.items():
@@ -156,3 +157,16 @@ def test_stop_releases_the_movement_keys(env):
     mode.stop()
     assert ctrl.released
     assert mode.state is CState.LOBBY
+
+
+def test_clicks_through_a_results_screen(env):
+    mode, ctrl, finder, keyboard, clock = env
+    keyboard["play"] = True
+    step(mode)                        # lobby -> match
+    keyboard["play"] = False
+    keyboard["skip"] = True
+    mode._calls = 0                   # the next step checks the result buttons
+    result = step(mode)
+    assert result.clicked
+    assert result.state is CState.PLAY
+    assert ctrl.clicks and ctrl.released
