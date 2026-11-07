@@ -19,15 +19,16 @@ TEMPLATE_NAMES = {
     "menu_return": "menu_return_btn.png",
 
     "chest": "chest_btn.png",
+    "map_player": "map_player.png",
 }
 
 MODES = {
     "A": "A: 通常ループ (続行→スキップ→ロビーへ)",
     "B": "B: 待機島で待ってEscから退出",
-    "C": "C: マップを歩いて宝箱を探す",
+    "C": "C: ルートで宝箱を自動 farming",
 }
 
-OPTIONAL_TEMPLATES = {"popup", "claim", "claim_single", "chest"}
+OPTIONAL_TEMPLATES = {"popup", "claim", "claim_single", "chest", "map_player"}
 
 LANGS = {
     "ja": "日本語",
@@ -38,7 +39,7 @@ LANGS = {
 }
 PLATE_LANGS = ("es", "pt", "ru")
 
-LANG_INDEPENDENT = {"continue", "skip", "hud", "menu_btn", "menu_return", "chest"}
+LANG_INDEPENDENT = {"continue", "skip", "hud", "menu_btn", "menu_return", "chest", "map_player"}
 
 PLATES = {
     "play": {"roi": (0.0, 0.70, 0.40, 1.0), "threshold": 0.92},
@@ -91,6 +92,10 @@ def template_path(key, lang = "ja"):
     bundled = os.path.join(bundled_assets_dir(), template_filename(key, lang))
     return bundled if os.path.isfile(bundled) else ext
 
+def map_route_path():
+    """The annotated map with the chest route, saved next to the program."""
+    return os.path.join(assets_dir(), "chest_map.png")
+
 def chest_template_paths():
     """Every chest image the player has cropped, in the assets folder.
 
@@ -127,11 +132,15 @@ class Settings:
     afk_keys: tuple = ("w", "a", "s", "d")
 
     chest_threshold: float = 0.55
+    bus_hold: float = 8.0
+    dive_s: float = 8.0
+    loot_search_s: float = 14.0
+    map_key: str = "m"
 
 SAVED_FIELDS = (
     "threshold", "lang", "mode", "wait_b",
     "afk_enabled", "afk_interval", "afk_hold", "monitor_index",
-    "chest_threshold",
+    "chest_threshold", "bus_hold", "dive_s", "loot_search_s", "map_key",
 )
 
 LIMITS = {
@@ -141,6 +150,9 @@ LIMITS = {
     "afk_hold": (0.5, 30.0),
     "monitor_index": (1, 16),
     "chest_threshold": (0.3, 0.9),
+    "bus_hold": (2.0, 60.0),
+    "dive_s": (1.0, 40.0),
+    "loot_search_s": (4.0, 60.0),
 }
 
 def settings_path():

@@ -25,9 +25,10 @@ import config
 import i18n
 from anti_afk import AntiAfk
 from chest import ChestFinder
-from chest_mode import ChestMode
 from controller import Controller
+from farm import FarmMode
 from focus import WinApi, find_game
+from mapvision import PlayerFinder, load_reference, render_debug, save_image
 from mode_b import ModeB
 from state_machine import State, StateMachine
 from vision import capture_screen, close_thread_capture, find_template, list_monitors, load_template_auto
@@ -68,11 +69,15 @@ class Worker(threading.Thread):
         machines = {
             "A": StateMachine(self.s, templates, ctrl),
             "B": ModeB(self.s, templates, ctrl),
-            "C": ChestMode(self.s, templates, ctrl),
+            "C": FarmMode(self.s, templates, ctrl),
         }
         mode = self.s.mode if self.s.mode in machines else "A"
         sm = machines[mode]
         sm.start()
+        for m in machines.values():
+            note = getattr(m, "startup_note", "")
+            if note:
+                self.log_q.put(note)
 
         afk = AntiAfk(self.s, active = lambda: getattr(sm, "state", None) is State.IN_MATCH)
         afk_thread = threading.Thread(target=afk.run, args=(self.stop_event, self.log_q.put), daemon=True)
@@ -297,6 +302,10 @@ class App:
         self._l(ttk.Button(cap, command=self.capture_template), "crop").pack(side="left")
         self._l(ttk.Button(cap, command=self.test_chests), "test_chest").pack(side="left", padx=4)
 
+        map_row = ttk.Frame(r)
+        map_row.pack(pady=(0, 4))
+        self._l(ttk.Button(map_row, command=self.test_map), "test_map").pack(side="left", padx=4)
+
         self.log = tk.Text(r, height=9, state="disabled", font=("Consolas", 9))
         self.log.pack(fill="both", expand=True, padx=8, pady=6)
         self._sync_mode_controls()
@@ -513,6 +522,36 @@ class App:
             self._log(i18n.t(self.s.lang, "log_chest_none"))
         else:
             self._log(i18n.t(self.s.lang, "log_chest_test", score=found.score))
+
+    def test_map(self):
+        try:
+            frame, _, _ = capture_screen(self.s.monitor_index)
+        except Exception as e:
+            self._log(i18n.t(self.s.lang, "log_capture_error", error=e))
+            return
+        try:
+            _, box, chests = load_reference()
+        except FileNotFoundError:
+            self._log(i18n.t(self.s.lang, "log_map_no_ref"))
+            return
+        except Exception as e:
+            self._log(i18n.t(self.s.lang, "log_capture_error", error=e))
+            return
+        try:
+            template = load_template_auto(config.template_path("map_player", self.s.lang))
+            player = PlayerFinder(template).fix(frame)
+            debug = render_debug(frame, box, player, chests, chests)
+            os.makedirs(config.assets_dir(), exist_ok = True)
+            path = os.path.join(config.assets_dir(), "map_check.png")
+            save_image(path, debug)
+        except Exception as e:
+            self._log(i18n.t(self.s.lang, "log_capture_error", error=e))
+            return
+        if player is None:
+            self._log(i18n.t(self.s.lang, "log_map_no_player"))
+            return
+        self._log(i18n.t(self.s.lang, "log_map_ok", chests = len(chests)))
+        self._log(i18n.t(self.s.lang, "log_map_saved", path = path))
 
     def _quit(self):
         if self._save_job is not None:

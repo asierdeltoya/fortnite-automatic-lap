@@ -28,10 +28,11 @@ echo      popup_btn.png         - optional: any other pop-up button to dismiss
 echo    English UI images use the suffix _en ^(play_btn_en.png, ...^).
 echo 3. Mode A = normal loop ^(Continue / Skip / Return to Lobby^). Mode B = wait on the
 echo    pre-match island ^(default 90 s^), then Esc, the hamburger tab, "Return to Lobby",
-echo    and queue again. Mode C = walk the map and open golden chests ^(10 per
-echo    match or 10 minutes^); crop a chest with the crop button and pick "chest"
-echo    so golden weapons are not mistaken for chests. Switch any time in the
-echo    window; B works in every game language.
+echo    and queue again. Mode C = bus -> map route -> chests -> requeue, on its own.
+echo    It needs the annotated map saved as assets\chest_map.png and the map arrow
+echo    cropped as map_player ^(open the map, press "Test map" to check it^). Without
+echo    them it only roams and opens the chests it sees. Crop a chest as "chest" so
+echo    golden weapons are not mistaken for chests. B works in every language.
 echo.
 echo Warning: automation may violate the game's terms of service and anti-cheat
 echo rules. Use at your own risk.

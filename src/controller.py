@@ -72,15 +72,27 @@ class Controller:
                 pass
         self._held = set()
 
+    LOOK_CHUNK = 400
+
     def look(self, dx, dy = 0):
-        """Turn the camera by a relative number of mouse counts."""
+        """Turn the camera by a relative number of mouse counts.
+
+        Big turns are split into chunks: a single huge relative move can be
+        clamped by the game, which would make map navigation drift.
+        """
         dx, dy = int(dx), int(dy)
         if not dx and not dy:
             return
         ensure_game_foreground()
         pydirectinput.FAILSAFE = False
         pydirectinput.PAUSE = 0.0
-        pydirectinput.moveRel(dx, dy)
+        while dx or dy:
+            step_x = max(-self.LOOK_CHUNK, min(self.LOOK_CHUNK, dx))
+            step_y = max(-self.LOOK_CHUNK, min(self.LOOK_CHUNK, dy))
+            pydirectinput.moveRel(step_x, step_y)
+            dx, dy = dx - step_x, dy - step_y
+            if dx or dy:
+                time.sleep(0.02)
 
     def ready(self):
         return time.monotonic() - self._last_click >= self.s.click_cooldown

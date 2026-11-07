@@ -7,12 +7,12 @@ if not exist .venv (
 )
 .venv\Scripts\pip install -q pyarmor || exit /b 1
 if exist build_obf rmdir /s /q build_obf
-.venv\Scripts\pyarmor gen -O build_obf\src src\main.py src\config.py src\vision.py src\controller.py src\state_machine.py src\anti_afk.py src\mode_b.py src\focus.py src\i18n.py src\detect.py src\chest.py src\explore.py src\chest_mode.py || exit /b 1
+.venv\Scripts\pyarmor gen -O build_obf\src src\main.py src\config.py src\vision.py src\controller.py src\state_machine.py src\anti_afk.py src\mode_b.py src\focus.py src\i18n.py src\detect.py src\chest.py src\explore.py src\chest_mode.py src\geometry.py src\mapvision.py src\navigation.py src\farm.py || exit /b 1
 .venv\Scripts\pyinstaller --noconsole --onefile --name pk-auto ^
   --paths build_obf\src ^
   --hidden-import pyarmor_runtime_000000 ^
   --hidden-import config --hidden-import anti_afk --hidden-import controller ^
-  --hidden-import state_machine --hidden-import vision --hidden-import mode_b --hidden-import focus --hidden-import i18n --hidden-import detect --hidden-import chest --hidden-import explore --hidden-import chest_mode --hidden-import json --hidden-import math ^
+  --hidden-import state_machine --hidden-import vision --hidden-import mode_b --hidden-import focus --hidden-import i18n --hidden-import detect --hidden-import chest --hidden-import explore --hidden-import chest_mode --hidden-import geometry --hidden-import mapvision --hidden-import navigation --hidden-import farm --hidden-import json --hidden-import math ^
   --hidden-import cv2 --hidden-import numpy ^
   --hidden-import tkinter --hidden-import tkinter.ttk ^
   --hidden-import queue --hidden-import threading --hidden-import dataclasses ^
@@ -36,10 +36,11 @@ echo return_lobby_btn, claim_btn, chest_btn, popup_btn^). English images end wit
 echo ^(play_btn_en.png, ...^).
 echo Mode A = normal loop ^(Continue / Skip / Return to Lobby^). Mode B = wait on the
 echo pre-match island ^(default 90 s^), then Esc, the hamburger tab, "Return to Lobby",
-echo and queue again. Mode C = walk the map and open golden chests ^(10 per
-echo match or 10 minutes^); crop a chest with the crop button and pick "chest"
-echo so golden weapons are not mistaken for chests. Switch any time in the
-echo window; B works in every game language.
+echo and queue again. Mode C = bus -> map route -> chests -> requeue, on its own.
+echo It needs the annotated map saved as assets\chest_map.png and the map arrow
+echo cropped as map_player ^(open the map, press "Test map" to check it^). Without
+echo them it only roams and opens the chests it sees. Crop a chest as "chest" so
+echo golden weapons are not mistaken for chests. B works in every language.
 echo.
 echo Warning: automation may violate the game's terms of service and anti-cheat
 echo rules. Use at your own risk.
